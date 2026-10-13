@@ -1,0 +1,13 @@
+# Local Azure Blob emulator (Azurite) for the gated conformance test (src/storage/tests/blob-object-store-live.test.ts).
+# Opt-in; the default test gate does not run it. Workflow:
+#   docker compose -f docker-compose.emulators.yml up -d
+#   export PRAGMATIC_TEST_BLOB_CONNSTR='DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+#   export PRAGMATIC_TEST_BLOB_CONTAINER=pragmatic-test
+#   npm test
+# The test creates the container if missing. State is discarded when the container is removed.
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: azurite-blob --blobHost 0.0.0.0
+    ports:
+      - "10000:10000"
