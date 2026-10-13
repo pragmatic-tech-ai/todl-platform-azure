@@ -10,10 +10,13 @@ class FakeSecretClient
     public static readonly NotFoundStatus = 404
     public static readonly ForbiddenStatus = 403
     public static readonly SecretNotFoundCode = 'SecretNotFound'
+    public static readonly OtherCode = 'Forbidden'
 
     public readonly map = new Map<string, string>()
     public missingError: Error = FakeSecretClient.StatusError(FakeSecretClient.NotFoundStatus)
-    public failWith: Error | undefined
+    public failWith: unknown
+    public failing = false
+    public valueless = false
 
     public static StatusError(statusCode: number): Error
     {
@@ -28,6 +31,10 @@ class FakeSecretClient
     public async getSecret(name: string): Promise<{ value?: string }>
     {
         this.MaybeFail()
+        if (this.valueless)
+        {
+            return { value: undefined }
+        }
         const value = this.map.get(name)
         if (value === undefined)
         {
@@ -53,9 +60,15 @@ class FakeSecretClient
         return { pollUntilDone: async () => {} }
     }
 
+    public Fail(error: unknown): void
+    {
+        this.failWith = error
+        this.failing = true
+    }
+
     private MaybeFail(): void
     {
-        if (this.failWith !== undefined)
+        if (this.failing)
         {
             throw this.failWith
         }
@@ -68,6 +81,7 @@ class KeyVaultFixture
     public static readonly Other = 'other'
     public static readonly ValueA = 'a'
     public static readonly ValueB = 'b'
+    public static readonly BoomString = 'boom'
 
     public static Make(): { fake: FakeSecretClient, client: RealKeyVaultClient }
     {
@@ -126,7 +140,7 @@ test('DeleteSecret removes the secret; deleting a missing one is a no-op', async
 test('a non-404 error propagates from AccessLatest, AddVersion and DeleteSecret', async () =>
 {
     const { fake, client } = KeyVaultFixture.Make()
-    fake.failWith = FakeSecretClient.StatusError(FakeSecretClient.ForbiddenStatus)
+    fake.Fail(FakeSecretClient.StatusError(FakeSecretClient.ForbiddenStatus))
     await assert.rejects(client.AccessLatest(KeyVaultFixture.Id))
     await assert.rejects(client.AddVersion(KeyVaultFixture.Id, KeyVaultFixture.ValueA))
     await assert.rejects(client.DeleteSecret(KeyVaultFixture.Id))
@@ -136,7 +150,7 @@ test('propagated errors are the identical object the SDK threw', async () =>
 {
     const { fake, client } = KeyVaultFixture.Make()
     const thrown = FakeSecretClient.StatusError(FakeSecretClient.ForbiddenStatus)
-    fake.failWith = thrown
+    fake.Fail(thrown)
     let caught: unknown
     try
     {
@@ -157,4 +171,55 @@ test('propagated errors are the identical object the SDK threw', async () =>
         caught = e
     }
     assert.equal(caught, thrown)
+})
+
+test('propagated AddVersion (setSecret) error is the identical object the SDK threw', async () =>
+{
+    const { fake, client } = KeyVaultFixture.Make()
+    const thrown = FakeSecretClient.StatusError(FakeSecretClient.ForbiddenStatus)
+    fake.Fail(thrown)
+    let caught: unknown
+    try
+    {
+        await client.AddVersion(KeyVaultFixture.Id, KeyVaultFixture.ValueA)
+    }
+    catch (e)
+    {
+        caught = e
+    }
+    assert.equal(caught, thrown)
+})
+
+test('AccessLatest propagates non-object throws (string and null) rather than treating them as absence', async () =>
+{
+    const { fake, client } = KeyVaultFixture.Make()
+    fake.Fail(KeyVaultFixture.BoomString)
+    await assert.rejects(client.AccessLatest(KeyVaultFixture.Id), (e: unknown) => e === KeyVaultFixture.BoomString)
+    fake.Fail(null)
+    await assert.rejects(client.AccessLatest(KeyVaultFixture.Id), (e: unknown) => e === null)
+})
+
+test('AccessLatest returns undefined when the secret resolves with no value', async () =>
+{
+    const { fake, client } = KeyVaultFixture.Make()
+    fake.valueless = true
+    assert.equal(await client.AccessLatest(KeyVaultFixture.Id), undefined)
+})
+
+test('an error with some other code and a non-404 status propagates (not treated as not-found)', async () =>
+{
+    const { fake, client } = KeyVaultFixture.Make()
+    const thrown = Object.assign(FakeSecretClient.CodeError(FakeSecretClient.OtherCode), { statusCode: FakeSecretClient.ForbiddenStatus })
+    fake.Fail(thrown)
+    let caught: unknown
+    try
+    {
+        await client.AccessLatest(KeyVaultFixture.Id)
+    }
+    catch (e)
+    {
+        caught = e
+    }
+    assert.equal(caught, thrown)
+    await assert.rejects(client.DeleteSecret(KeyVaultFixture.Id), (e: unknown) => e === thrown)
 })
