@@ -34,6 +34,8 @@ class BackendsFixture
     public static readonly Ref = 'secret-ref-xyz'
     public static readonly PasswordValue = 'pw-value-123'
     public static readonly Unset = 'unset'
+    public static readonly MissingRefPattern = /password secret reference/
+    public static readonly AbsentPattern = /could not be resolved/
 
     public readonly Secrets = new FakeSecretClient()
     public DisposeCalls = 0
@@ -86,6 +88,7 @@ test('ENTRA auth builds backends with no password', async () =>
         assert.ok(b.SecretManager)
         assert.ok(b.Session instanceof PgSession)
         assert.equal(f.PasswordArg, undefined)
+        assert.equal(f.PoolCalls, 1)
     }
 })
 
@@ -111,7 +114,8 @@ test('PASSWORD auth without a ref rejects generically', async () =>
     const f = new BackendsFixture()
     await assert.rejects(
         AzureCloudBackends.Create(BackendsFixture.Config({ azpgAuth: 'password' }), f.Factories()),
-        (e: Error) => !e.message.includes(BackendsFixture.Ref) && !e.message.includes(BackendsFixture.PasswordValue))
+        (e: Error) => BackendsFixture.MissingRefPattern.test(e.message)
+            && !e.message.includes(BackendsFixture.Ref) && !e.message.includes(BackendsFixture.PasswordValue))
     assert.equal(f.PoolCalls, 0)
 })
 
@@ -121,7 +125,8 @@ test('PASSWORD auth with an absent secret rejects generically', async () =>
     await assert.rejects(
         AzureCloudBackends.Create(
             BackendsFixture.Config({ azpgAuth: 'password', azpgPasswordRef: BackendsFixture.Ref }), f.Factories()),
-        (e: Error) => e.message.length > 0 && !e.message.includes(BackendsFixture.Ref))
+        (e: Error) => BackendsFixture.AbsentPattern.test(e.message)
+            && !e.message.includes(BackendsFixture.Ref) && !e.message.includes(BackendsFixture.PasswordValue))
     assert.equal(f.PoolCalls, 0)
 })
 

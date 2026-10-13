@@ -69,12 +69,13 @@ export class AzureCloudBackends
         config: IAzureCloudBackendsConfig,
         factories: IAzureCloudBackendsFactories = AzureCloudBackends.DefaultFactories): Promise<AzureCloudBackends>
     {
+        const authMode = AzureCloudBackends.ParseAuth(config.azpgAuth)
         const storage = new BlobStorageProviderRegistry(
             factories.CreateBlobService(config), config.blobContainer, config.blobPrefix ?? '')
         const secretManager = new AzureKeyVaultSecretStore(
             new RealKeyVaultClient(factories.CreateSecretClient(config)))
         let password: string | undefined
-        if (AzureCloudBackends.ParseAuth(config.azpgAuth) === FlexibleAuthMode.Password)
+        if (authMode === FlexibleAuthMode.Password)
         {
             const ref = config.azpgPasswordRef
             if (ref === undefined)
