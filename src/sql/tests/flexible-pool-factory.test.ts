@@ -12,6 +12,7 @@ class PoolFixture
     public static readonly Scope = 'https://ossrdbms-aad.database.windows.net/.default'
     public static readonly DummyToken = 'dummy-entra-token'
     public static readonly DummyPassword = 'dummy-password'
+    public static readonly CustomScope = 'custom/.default'
 
     public cfg: Record<string, unknown> = {}
     public getTokenCalls = 0
@@ -64,9 +65,9 @@ test('Entra mode: password is a function minting a fresh token per call with the
 test('Entra mode honours a custom scope', async () =>
 {
     const f = new PoolFixture()
-    await f.Factory(f.Options({ entraScope: 'custom/.default' })).Create()
+    await f.Factory(f.Options({ entraScope: PoolFixture.CustomScope })).Create()
     await (f.cfg.password as () => Promise<string>)()
-    assert.deepEqual(f.scopes, ['custom/.default'])
+    assert.deepEqual(f.scopes, [PoolFixture.CustomScope])
 })
 
 test('Password mode uses the provided string and never calls the credential', async () =>
