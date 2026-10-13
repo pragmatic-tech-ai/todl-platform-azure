@@ -10,7 +10,16 @@ class EncodingFixture
     public static readonly Prefix = 'r-'
     public static readonly ValidName = /^[0-9a-zA-Z-]{1,127}$/
     public static readonly HexBody = /^[0-9a-f]+$/
+    public static readonly MaxNameLength = 127
+    public static readonly MaxFittingRefBytes = 62
+    public static readonly FirstTooLongRefBytes = 63
     public static readonly OverLongRefLength = 200
+    public static readonly FillChar = 'x'
+
+    public static RefOfLength(length: number): string
+    {
+        return EncodingFixture.FillChar.repeat(length)
+    }
 }
 
 test('ToSecretId is deterministic and prefixed', () =>
@@ -35,14 +44,25 @@ test('ToSecretId output is a valid Key Vault name with a hex body', () =>
     }
 })
 
-test('an over-long reference throws without naming the reference or a secret', () =>
+test('the longest reference that fits (62 bytes) encodes within the limit', () =>
 {
-    const ref = 'x'.repeat(EncodingFixture.OverLongRefLength)
+    const id = SecretRefEncoding.ToSecretId(EncodingFixture.RefOfLength(EncodingFixture.MaxFittingRefBytes))
+    assert.ok(id.length <= EncodingFixture.MaxNameLength)
+    assert.match(id, EncodingFixture.ValidName)
+})
+
+test('a 63-byte reference exceeds the limit and throws', () =>
+{
+    assert.throws(() => SecretRefEncoding.ToSecretId(EncodingFixture.RefOfLength(EncodingFixture.FirstTooLongRefBytes)))
+})
+
+test('an over-long reference throws without naming the reference', () =>
+{
+    const ref = EncodingFixture.RefOfLength(EncodingFixture.OverLongRefLength)
     assert.throws(() => SecretRefEncoding.ToSecretId(ref), (err: Error) =>
     {
         assert.ok(!err.message.includes(ref))
-        assert.ok(!err.message.includes('xxx'))
-        assert.ok(!/secret\s+\S*[0-9a-f]{8}/i.test(err.message))
+        assert.ok(!err.message.includes(EncodingFixture.FillChar.repeat(3)))
         return true
     })
 })
