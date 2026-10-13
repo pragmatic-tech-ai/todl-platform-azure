@@ -7,3 +7,5 @@ export { AzureKeyVaultSecretStore } from './secrets/azure-key-vault-secret-store
 export { RealKeyVaultClient } from './secrets/real-key-vault-client.js'
 export { SecretRefEncoding } from './secrets/secret-ref-encoding.js'
 export type { ISecretManagerClient } from './secrets/secret-manager-client.js'
+export { FlexiblePoolFactory, FlexibleAuthMode } from './sql/flexible-pool-factory.js'
+export type { IFlexiblePoolOptions, IFlexiblePoolHandle, IEntraCredential, IFlexiblePool } from './sql/flexible-pool-factory.js'
